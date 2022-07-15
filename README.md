@@ -12,12 +12,13 @@ python polyedge.py your_bam_file.bam
 
 The result is a table written to STDOUT, like this:
 ```
-A  204 0.38 23.52 2.62 25
-T  328 0.62 25.51 2.34 27
-|  |   |    |     |    +- Mode of poly length
-|  |   |    |     +- Standard deviation of poly length
-|  |   |    +- Mean poly length
-|  |   +- Fraction of reads
-|  +- Read count
+A  33 204 0.38 23.52 2.62 25
+T  20 328 0.62 25.51 2.34 27
+|  |  |   |    |     |    +- Mode of poly length
+|  |  |   |    |     +- Standard deviation of poly length
+|  |  |   |    +- Mean poly length
+|  |  |   +- Fraction of reads
+|  |  +- Read Count
+|  +- Mean quality if first base
 +- First base of poly repeat allele
 ```
