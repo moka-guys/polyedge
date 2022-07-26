@@ -28,4 +28,3 @@ T  20 328 0.62 25.51 2.34 27 0.99
 |  +- Mean quality if first base
 +- First base of poly repeat allele
 ```
-
