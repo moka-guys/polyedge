@@ -60,7 +60,7 @@ def main(bamfile):
                 int(statistics.mean(quals[allele])),
                 len(counts[allele])/total_count,
                 statistics.mean(counts[allele]),
-                statistics.stdev(counts[allele]),
+                statistics.stdev(counts[allele]) if len(counts[allele]) > 1 else 0,
                 statistics.mode(counts[allele]),
                 sum(purity[allele])/(sum(counts[allele])-len(counts[allele]))
                 )
