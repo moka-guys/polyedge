@@ -19,7 +19,12 @@ def main(bamfile):
     # open BAM file
     reader = pysam.Samfile(bamfile, 'rb')
     # fetch reads intersecting the poly repeat
-    roi_reads = reader.fetch(CHROM, *POLY)
+    try:
+        roi_reads = reader.fetch(CHROM, *POLY)
+    except ValueError as e:
+        chrCHROM = "chr{}".format(CHROM)
+        print("Using CHROM {} raised an exception ({}). Trying: CHROM '{}'".format(str(CHROM), e, chrCHROM))
+        roi_reads = reader.fetch(chrCHROM, *POLY)
     for read in roi_reads:
         # define start and end of segment to be matched
         roi_start = POLY[0]-ANCHOR_LENGTH
