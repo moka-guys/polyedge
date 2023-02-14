@@ -1,0 +1,8 @@
+Interpretation Thresholds:
+Coverage >= 100X​
+Mean BQ >= 20
+Het if both fractions of reads >=0.2
+Purity of polyN should be >0.95 (max 5% variation within polyN repeat)
+
+
+First base of poly repeat allele,Read count,Mean quality of first base,Fraction of reads,Mean poly length,Standard deviation of poly length,Mode of poly length,Average purity of polyN repeat
