@@ -1,98 +1,111 @@
-import pysam
-import argparse
+""" Finds variants at the edge of a poly that is varying length
+"""
 import subprocess
 import re
 import os
+import argparse
 import statistics
 from collections import defaultdict, Counter
 from functools import reduce
 import csv
-import shutil
-import jinja2
 import datetime
-# from xhtml2pdf import pisa
+import jinja2
 import pdfkit
+import pysam
+import config
+
 
 class PolyEdge():
     """
     Class for processing bam files to determine whether a variant is present at the position before
     a poly stretch, and write to file
 
-    generate_output()
+        generate_output()
+            Call methods required to generate all output files for the sample provided
 
-    calculation()
+        roi_reads(self):
+            Open bam file and fetch reads from input bam (using pysam) intersecting the poly repeat
+            :return roi_reads (obj):    Object containing reads
 
-    create_pdf()
+        calculate_metrics()
+            Calculate metrics per allele.
+            :return allele_list (list): List of dictionaries, one per allele,
+                                        containing calculated metrics
+        create_csvfile()
+            Write metrics to csv. Copy template csv to output dest, write data to end of file
+            :param allele_list (list):  List of dictionaries, one per allele,
+                                        containing calculated metrics
+        construct_table_html()
+            Construct html with formatting dependent on whether metrics meet defined thresholds
+            :param allele_list (list):  List of dictionaries, one per allele,
+                                        containing calculated metrics
+            :return table_html (str):   String containing the table html
 
-    create_csv()
+        create_htmlfile()
+            Write metrics to html
+            :param table_html (str):    String containing the table html
 
+        create_pdffile()
+            Write metrics to pdf
     """
-    def __init__(self, bamfile, gene, chrom, poly, anchor_length):
+    def __init__(self, bamfile, bam_index, gene, chrom, poly, anchor_length):
         """
-        :param bamfile (str):       Bam file to analyse
-        :param gene (str) :         Gene of interest
-        :param chrom (str):         Chromosome of interest
-        :param position (int):      Position of interest
-        :param anchor_length (int): Length of anchor sequence
-        :return data (list):        List of tuples per allele, with each tuple containing the
-                                    output stats as defined in the readme
+        Constructor for PolyEdge class
+
+            :param bamfile (str):       Bam file to analyse
+            :param gene (str) :         Gene of interest
+            :param chrom (str):         Chromosome of interest
+            :param poly (tuple):        Contains start and end position of poly stretch
+            :param anchor_length (int): Length of anchor sequence
+            :return data (list):        List of tuples per allele, with each tuple containing the
+                                        output stats as defined in the readme
         """
-        self.root_dir = os.path.dirname(os.path.abspath(__file__)) # This is your Project Root
         self.bamfile = bamfile
         self.gene = gene
         self.chrom = chrom
-        self.chrCHROM = f"chr{self.chrom}"
+        self.chrchrom = f"chr{self.chrom}"
         self.anchor_length = anchor_length
         self.poly = poly
+        self.variant_pos = poly[0]+1
         # Define start and end of segment to be matched
         self.roi_start = self.poly[0]-self.anchor_length
         self.roi_end = self.poly[1]+self.anchor_length
         # Variables required for creating output files
         self.bamfile_prefix = os.path.splitext(bamfile)[0].split("/")[-1]
+        self.baifile_prefix = os.path.splitext(bam_index)[0].split("/")[-1]
+        self.sample_name = self.bamfile_prefix.split(".")[0]
         self.output_string = f"{self.bamfile_prefix}.{self.gene}_polyedge"
-        self.template_dir = os.path.join(self.root_dir, 'templates')
         self.timestamp = datetime.datetime.now().strftime('%d-%B-%Y %H:%M')
-
-        self.csv_template = os.path.join(self.template_dir, 'template_report.csv')
         self.csv_path = os.path.join(os.getcwd(), f"{self.output_string}.csv")
-        self.csv_data_format = '{:>},{:4n},{:2n},{:.2f},{:2.2f},{:.2f},{:2n},{:.2f}'
-
-        self.html_template = os.path.join(self.template_dir, 'template_report.html')
         self.html_path = os.path.join(os.getcwd(), f"{self.output_string}.html")
-        self.html_data_format = "<tr><td>{:>}</td><td>{:4n}</td><td>{:2n}</td><td>{:.2f}</td>"\
-                                "<td>{:2.2f}</td><td>{:.2f}</td><td>{:2n}</td><td>{:.2f}</td></tr>"
         self.pdf_path = os.path.join(os.getcwd(), f"{self.output_string}.pdf")
-
 
     def generate_output(self):
         """
         Call methods required to generate all output files for the sample provided
         """
         allele_list = self.calculate_metrics()
-        print(self.bamfile_prefix)
-        # self.create_csv(allele_list)
-        self.create_html(allele_list)
+        self.create_csvfile(allele_list)
+        table_html = self.construct_table_html(allele_list)
+        self.create_htmlfile(table_html)
+        self.create_pdffile()
 
     def calculate_metrics(self):
         """
-        Calculate metrics: first base of poly repeat allele, read count, mean quality of first base,
-        fraction of reads, mean poly length, standard deviation of poly length, mode of poly length,
-        average purity of polyN repeat
+        Calculate metrics per allele: first base of poly repeat allele, read count, mean quality
+        of first base, fraction of reads, mean poly length, standard deviation of poly length,
+        mode of poly length, average purity of polyN repeat
+
+            :return allele_list (list): List of dictionaries, one per allele,
+                                        containing calculated metrics
         """
         # Poly length counts by first base allele
-        counts = defaultdict(list)  # Lengths of repeat given allele (one per read)
-        quals = defaultdict(list)  # Quality of first base
-        purity = defaultdict(list)  # Most common base count in poly w/o first base
-        reader = pysam.Samfile(self.bamfile, 'rb')  # Open BAM file
-        # Fetch reads intersecting the poly repeat
-        try:
-            roi_reads = reader.fetch(str(self.chrom), *self.poly)
-        except ValueError as e:
-            print(f"Using CHROM {str(self.chrCHROM)} raised an exception ({e}). "
-                  f"Trying: CHROM '{self.chrCHROM}'")
-            roi_reads = reader.fetch(self.chrCHROM, *self.poly)
-        for read in roi_reads:
-            # Select that span poly with defined ANCHOR sequence length
+        counts = defaultdict(list)  # Store lengths of repeat for given allele (one per read)
+        quals = defaultdict(list)  # Store quality of first base
+        purity = defaultdict(list)  # Store most common base count in poly w/o first base
+
+        for read in self.roi_reads():
+            # Select reads that span poly with defined ANCHOR sequence length
             if read.reference_start < self.roi_start and self.roi_end < read.reference_end:
                 # Find sequence segment with poly and anchor sequence
                 # -> first matching position in the query->reference mapping
@@ -123,93 +136,201 @@ class PolyEdge():
         total_count = reduce(lambda a, c: a + len(c), counts.values(), 0)
         allele_list = []
         for allele in sorted(counts.keys()):
-            data = (allele,
-                    len(counts[allele]),
-                    int(statistics.mean(quals[allele])),
-                    len(counts[allele])/total_count,
-                    statistics.mean(counts[allele]),
-                    statistics.stdev(counts[allele]) if len(counts[allele]) > 1 else 0,
-                    statistics.mode(counts[allele]),
-                    sum(purity[allele])/(sum(counts[allele])-len(counts[allele]))
-                    )
+            data = {
+                "gene": self.gene,
+                "chrom": self.chrom,
+                "pos": self.variant_pos,
+                "first_base": allele,
+                "read_count": len(counts[allele]),
+                "mean_quality": int(statistics.mean(quals[allele])),
+                "read_fraction": round(len(counts[allele])/total_count, 2),
+                "mean_polylen": round(statistics.mean(counts[allele]), 2),
+                "stdev_polylen": round(statistics.stdev(counts[allele]),
+                                       2) if len(counts[allele]) > 1 else 0,
+                "mode_polylen": statistics.mode(counts[allele]),
+                "poly_purity": round(sum(purity[allele])/(sum(counts[allele])-len(counts[allele]))),
+                }
             allele_list.append(data)
         return allele_list
 
-    def create_csv(self, allele_list):
+    def roi_reads(self):
         """
-        Write metrics to csv. Copy template csv to output dest, write data to end of file
+        Open bam file and fetch reads from input bam (using pysam) intersecting the poly repeat
+
+            :return roi_reads (obj):    Object containing reads
         """
-        shutil.copyfile(self.csv_template, self.csv_path)
-        with open(self.csv_path, 'a', newline='', encoding='utf-8') as file:
+        reader = pysam.Samfile(self.bamfile, 'rb')  # Open BAM file
+        try:
+            roi_reads = reader.fetch(str(self.chrom), *self.poly)
+        except ValueError as exception:
+            print(f"Using CHROM {str(self.chrchrom)} raised an exception ({exception}). "
+                  f"Trying: CHROM '{self.chrchrom}'")
+            roi_reads = reader.fetch(self.chrchrom, *self.poly)
+        return roi_reads
+
+    def create_csvfile(self, allele_list):
+        """
+        Write metrics to csv file
+
+            :param allele_list (list):  List of dictionaries, one per allele,
+                                        containing calculated metrics
+        """
+        with open(self.csv_path, 'wt', encoding='utf-8') as file:
             writer = csv.writer(file, delimiter=',')
+            writer.writerow(["Created by", f"{config.APP_NAME}"])
+            writer.writerow(["Version", git_tag()])
+            writer.writerow(["Date", self.timestamp])
+            writer.writerow(["Sample", self.sample_name])
+            writer.writerow([])
+            writer.writerow([config.PARAMETERS_STR])
+            writer.writerow([config.BAM_PARAM, self.bamfile_prefix])
+            writer.writerow([config.BAI_PARAM, self.baifile_prefix])
+            writer.writerow([config.GENE_PARAM, self.gene])
+            writer.writerow([config.CHROM_PARAM, self.chrom])
+            writer.writerow([config.POLY_S_PARAM, self.poly[0]])
+            writer.writerow([config.POLY_E_PARAM, self.poly[1]])
+            writer.writerow([config.ANCHOR_LEN_PARAM, self.anchor_length])
+            writer.writerow([])
+            writer.writerow(config.TABLE_HEADERS)
+            
             for row in allele_list:
-                line_to_write = self.csv_data_format.format(*row).split(",")
-                writer.writerow(line_to_write)
+                writer.writerow(row.values())
         file.close()
 
-    def create_html(self, allele_list):
+    def construct_table_html(self, allele_list):
         """
-        Write metrics to html
+        Construct html with formatting dependent on whether metrics meet defined thresholds.
+        (Formatting is defined in the config file as variables).
+
+            :param allele_list (list):  List of dictionaries, one per allele,
+                                        containing calculated metrics
+            :return table_html (str):   String containing the table html
         """
-        table_lines = ""
-        for row in allele_list:
-            table_lines += self.html_data_format.format(*row)
+        # Generate the table body, with a row per allele
+        table_body = ""
+        for allele_dict in allele_list:
+            if allele_dict["read_count"] >= config.THRESHOLDS["read_count"]:
+                read_count = config.CELL_PASS.format(allele_dict["read_count"])
+            else:
+                read_count = config.CELL_FAIL.format(allele_dict["read_count"])
 
-        logopath = os.path.join(self.root_dir, "images/logo.png")
+            if allele_dict["mean_quality"] >= config.THRESHOLDS["mean_quality"]:
+                mean_quality = config.CELL_PASS.format(allele_dict["mean_quality"])
+            else:
+                mean_quality = config.CELL_FAIL.format(allele_dict["mean_quality"])
 
-        jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.template_dir),
-                                       autoescape=True)
-        template = jinja_env.get_template('template_report.html')
+            if allele_dict["read_fraction"] >= config.THRESHOLDS["read_fraction"]:
+                read_fraction = config.CELL_PASS.format(allele_dict["read_fraction"])
+            else:
+                read_fraction = config.CELL_FAIL.format(allele_dict["read_fraction"])
+
+            if allele_dict["poly_purity"] >= config.THRESHOLDS["poly_purity"]:
+                poly_purity = config.CELL_PASS.format(allele_dict["poly_purity"])
+            else:
+                poly_purity = config.CELL_FAIL.format(allele_dict["poly_purity"])
+
+            table_body += config.HTML_ROW.format(config.CELL.format(allele_dict['gene']),
+                                                 config.CELL.format(allele_dict['chrom']),
+                                                 config.CELL.format(allele_dict['pos']),
+                                                 config.CELL.format(allele_dict['first_base']),
+                                                 read_count, mean_quality, read_fraction,
+                                                 config.CELL.format(allele_dict['mean_polylen']),
+                                                 config.CELL.format(allele_dict['stdev_polylen']),
+                                                 config.CELL.format(allele_dict['mode_polylen']),
+                                                 poly_purity)
+        cell_string = ""
+        for string in config.TABLE_HEADERS:  # Generate the table headers
+            cell_string += f"<th>{string}</th>"
+        table_header = f"<tr>{cell_string}</tr>"
+        table_html = f"{table_header}{table_body}"
+
+        return table_html
+
+    def create_htmlfile(self, table_html):
+        """
+        Write metrics to html. Load template using jinja2, then write to new file, filling the
+        place holders in the template with the specified placeholder values
+
+            :param table_html (str): String containing the table html
+        """
+        template = jinja2.Environment(loader=jinja2.FileSystemLoader(config.TEMPLATE_DIR),
+                                      autoescape=True).get_template('template_report.html')
+
+        footer_html = config.LIST.format(config.BAM_PARAM, self.bamfile_prefix, config.BAI_PARAM,
+                                         self.baifile_prefix, config.GENE_PARAM, self.gene,
+                                         config.CHROM_PARAM, self.chrom, config.POLY_S_PARAM,
+                                         self.poly[0], config.POLY_E_PARAM, self.poly[1],
+                                         config.ANCHOR_LEN_PARAM, self.anchor_length)
+
         place_holder_values = {"timestamp": self.timestamp,
                                "app_version": git_tag(),
                                "gene": self.gene,
-                               "sample_name": self.bamfile_prefix.split(".")[0],
-                               "results": table_lines,
-                               "logo": logopath}
+                               "sample_name": self.sample_name,
+                               "table": table_html,
+                               "logo": config.LOGOPATH,
+                               "parameters_str": config.PARAMETERS_STR,
+                               "footer_html": footer_html}
 
         with open(self.html_path, "w", encoding="utf-8") as html_file:
             html_file.write(template.render(place_holder_values))
+        html_file.close()
 
-        # Specify pdfkit options to turn off standard out and also allow access to the images
-        pdfkit.from_file(self.html_path, self.pdf_path,
-                         options={'enable-local-file-access': None, "quiet": '', 'encoding': "UTF-8"})
+    def create_pdffile(self):
+        """
+        Write metrics to pdf, specifying pdfkit options to turn off standard out and to allow
+        pdfkit access to logo image
+        """
+        pdfkit.from_file(self.html_path, self.pdf_path, options={
+                                                            'enable-local-file-access': None,
+                                                            "quiet": '',
+                                                            'encoding': "UTF-8"
+                                                            })
+
 
 def arg_parse():
     """
-    Parses arguments supplied by the command line. Creates argument parser, defines command line
-    arguments, then parses supplied command line arguments using the created argument parser.
+    Parse arguments supplied by the command line. Create argument parser, define command line
+    arguments, then parse supplied command line arguments using the created argument parser
 
         :return (Namespace object): parsed command line attributes
     """
     parser = argparse.ArgumentParser(description='Determine whether a known variant is present at '
                                                  'the base preceding a poly stretch in a BAM file')
-    requiredNamed = parser.add_argument_group('Required named arguments')
-    requiredNamed.add_argument('-B', '--bam', type=dir_path, help='Bam file to analyse',
-                               required=True)
-    requiredNamed.add_argument('-I', '--bai', type=dir_path, help='Bam index file', required=True)
-    requiredNamed.add_argument('-G', '--gene', type=str, help='Gene of interest', required=True)
-    requiredNamed.add_argument('-S', '--poly_start', type=int,
+    parser.add_argument('-A', config.ANCHOR_LEN_PARAM, type=int,  nargs='?', default=2, const=2,
+                        help='Length of anchor sequence', required=False)  # Optional argument
+    requirednamed = parser.add_argument_group('Required named arguments')
+    requirednamed.add_argument('-B', config.BAM_PARAM, type=validate_path,
+                               help='Bam file to analyse', required=True)
+    requirednamed.add_argument('-I', config.BAI_PARAM, type=validate_path,
+                               help='Bam index file', required=True)
+    requirednamed.add_argument('-G', config.GENE_PARAM, type=str,
+                               help='Gene of interest', required=True)
+    requirednamed.add_argument('-S', config.POLY_S_PARAM, type=int,
                                help='Start position of poly stretch', required=True)
-    requiredNamed.add_argument('-E', '--poly_end', type=int,
+    requirednamed.add_argument('-E', config.POLY_E_PARAM, type=int,
                                help='End position of poly stretch', required=True)
-    requiredNamed.add_argument('-A', '--anchor_length', type=int,
-                               help='Length of anchor sequence', required=True)
-    requiredNamed.add_argument('-C', '--chrom', type=int,
+    requirednamed.add_argument('-C', config.CHROM_PARAM, type=int,
                                help="Chromosome of interest", required=True)
     return vars(parser.parse_args())
 
 
-def dir_path(path):
+def validate_path(path):
     """
-    Checks the command line argument provided is an existing directory
+    Check path exists
+
+        :param path (str):  Input path to validate
     """
     if os.path.exists(path):
         return path
     else:
-        raise argparse.ArgumentTypeError(f"readable_dir:{path} is not a valid path")
+        raise argparse.ArgumentTypeError(f"{path} is not a valid path")
+
 
 def git_tag():
-    """Obtain the git tag of the current commit"""
+    """Obtain git tag from current commit
+
+        :return stdout (str):  String containing stdout, with newline characters removed
+    """
     filepath = os.path.dirname(os.path.realpath(__file__))
     cmd = f"git -C {filepath} describe --tags"
 
@@ -217,32 +338,17 @@ def git_tag():
         [cmd], stderr=subprocess.PIPE, stdout=subprocess.PIPE, shell=True
     )
     out, _ = proc.communicate()
-    #  Return standard out, removing any new line characters
     return out.rstrip().decode("utf-8")
 
 
 if __name__ == "__main__":
-    git_tag()
-    print(git_tag())
 
-
-
-if __name__ == "__main__":
     args = arg_parse()
     bamfile = args['bam']
-    # Whilst not explicitly specified within the script
-    # this is required to fetch the reads (reader.fetch())
     bam_index = args['bai']
     gene = args['gene']
     chrom = args['chrom']
     poly = (args['poly_start'], args['poly_end'])
     anchor_length = args['anchor_length']
-
-    polyedge = PolyEdge(bamfile, gene, chrom, poly, anchor_length)
+    polyedge = PolyEdge(bamfile, bam_index, gene, chrom, poly, anchor_length)
     polyedge.generate_output()
-
-    # GENE = "MSH2"
-    # CHROM = "2"
-    # POS = 47641559
-    # POLY = (POS, 47641586)
-    # ANCHOR_LENGTH = 2

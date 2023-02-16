@@ -5,7 +5,15 @@
 		size: A4;
 		padding: 50px
 		}
-
+		html {
+			display: table;
+			margin: auto;
+			height: 100%;
+			width: 80%;
+		}
+		body {
+			display: table-cell;
+		}
 		header {
 			display: flex;
 			justify-content: space-between;
@@ -42,16 +50,14 @@
 		div.interpretation_thresholds{
 			font-family: Arial, Helvetica, sans-serif;
 			font-size: 10px;
-			/* font-size: 8px; */
 			width: 80%;
 			position: relative;
 			background: #ededed;
 			padding: 5px;
 			padding-left: 15px
 		}
-		div.result{
+		div.results {
 			font-family: Arial, Helvetica, sans-serif;
-			/* font-size: 8px; */
 			position: relative
 		}
 		table, td, tr, th {
@@ -68,6 +74,16 @@
 			width: 200px;
 			height: auto
 		}
+		footer {
+			font-size: 10px;
+			text-align: left;
+			bottom: 0;
+			left: 10%;
+			width: 80%;
+			position: fixed;
+			height: 140px;
+			color: #5A5A5A;
+		}
 	</style>
 	<head>
 		<div class="header">
@@ -81,23 +97,13 @@
 			<h2 align="center"> {{ gene }} POLYEDGE REPORT</h2>
 			<h4 align="center"> Created {{ timestamp }}</div>
 		</div>
-		<hr width="100%" size="2" color="black">
+		<hr width="100%" size="2" color="black"></hr>
 		<div class="clear">&nbsp;</div>
 		<h3 align="left"> {{ sample_name }}</h3>
-		<hr width="100%" size="0" color="white">
-		<div class="results" align="center">
+		<hr width="100%" size="0" color="white"></hr>
+		<div class="results" align="left">
 			<table>
-				<tr>
-					<th>First base of poly repeat allele</th>
-					<th>Read count</th>
-					<th>Mean quality of first base</th>
-					<th>Fraction of reads</th>
-					<th>Mean poly length</th>
-					<th>Standard deviation of poly length</th>
-					<th>Mode of poly length</th>
-					<th>Average purity of polyN repeat</th>
-				</tr>
-				{{ results | safe }}
+				{{ table | safe }}
 			</table>
 		</div>	
 		<div class="clear">&nbsp;</div>
@@ -107,11 +113,17 @@
 			The above metrics are highlighted in green if they meet these thresholds
 			and in red if they do not.
 			<ul>
-				<li>Coverage >= 100X​</li>
+				<li>Read count >= 100X​</li>
 				<li>Mean BQ >= 20​</li>
 				<li>Het if both fractions of reads >=0.2​</li>
-				<li>Purity of polyN should be >0.95 (max 5% variation within polyN repeat)​</li>
+				<li>Purity of polyN should be >=0.95 (max 5% variation within polyN repeat)​</li>
 			</ul>
-		</div>
+		</div>	
 	</body>
+	<footer>
+		<div><hr width="100%" size="1" color=#5A5A5A></hr></div>
+		{{ parameters_str }}
+		{{ footer_html | safe}}
+		<div><hr width="100%" size="1" color=#5A5A5A></hr></div>
+	</footer>
 </html>
