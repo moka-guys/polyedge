@@ -15,7 +15,7 @@ import pysam
 import config
 
 
-class PolyEdge():
+class PolyEdge:
     """
     Class for processing bam files to determine whether a variant is present at the position before
     a poly stretch, and write to file
@@ -48,6 +48,7 @@ class PolyEdge():
         create_pdffile()
             Write metrics to pdf
     """
+
     def __init__(self, bamfile, bam_index, gene, chrom, poly, anchor_length):
         """
         Constructor for PolyEdge class
@@ -66,19 +67,35 @@ class PolyEdge():
         self.chrchrom = f"chr{self.chrom}"
         self.anchor_length = anchor_length
         self.poly = poly
-        self.variant_pos = poly[0]+1
+        self.variant_pos = poly[0] + 1
         # Define start and end of segment to be matched
-        self.roi_start = self.poly[0]-self.anchor_length
-        self.roi_end = self.poly[1]+self.anchor_length
+        self.roi_start = self.poly[0] - self.anchor_length
+        self.roi_end = self.poly[1] + self.anchor_length
         # Variables required for creating output files
         self.bamfile_prefix = os.path.splitext(bamfile)[0].split("/")[-1]
         self.baifile_prefix = os.path.splitext(bam_index)[0].split("/")[-1]
         self.sample_name = self.bamfile_prefix.split(".")[0]
         self.output_string = f"{self.bamfile_prefix}.{self.gene}_polyedge"
-        self.timestamp = datetime.datetime.now().strftime('%d-%B-%Y %H:%M')
+        self.timestamp = datetime.datetime.now().strftime("%d-%B-%Y %H:%M")
         self.csv_path = os.path.join(os.getcwd(), f"{self.output_string}.csv")
         self.html_path = os.path.join(os.getcwd(), f"{self.output_string}.html")
         self.pdf_path = os.path.join(os.getcwd(), f"{self.output_string}.pdf")
+        self.footer_html = config.HTML_LIST.format(
+            config.PARAMS["bam"],
+            self.bamfile_prefix,
+            config.PARAMS["bai"],
+            self.baifile_prefix,
+            config.PARAMS["gene"],
+            self.gene,
+            config.PARAMS["chrom"],
+            self.chrom,
+            config.PARAMS["poly_start"],
+            self.poly[0],
+            config.PARAMS["poly_end"],
+            self.poly[1],
+            config.PARAMS["anchor_length"],
+            self.anchor_length,
+        )
 
     def generate_output(self):
         """
@@ -100,27 +117,41 @@ class PolyEdge():
                                         containing calculated metrics
         """
         # Poly length counts by first base allele
-        counts = defaultdict(list)  # Store lengths of repeat for given allele (one per read)
+        counts = defaultdict(
+            list
+        )  # Store lengths of repeat for given allele (one per read)
         quals = defaultdict(list)  # Store quality of first base
-        purity = defaultdict(list)  # Store most common base count in poly w/o first base
+        purity = defaultdict(
+            list
+        )  # Store most common base count in poly w/o first base
 
         for read in self.roi_reads():
             # Select reads that span poly with defined ANCHOR sequence length
-            if read.reference_start < self.roi_start and self.roi_end < read.reference_end:
+            if (
+                read.reference_start < self.roi_start
+                and self.roi_end < read.reference_end
+            ):
                 # Find sequence segment with poly and anchor sequence
                 # -> first matching position in the query->reference mapping
-                seq_start = next(x for x in read.get_aligned_pairs()
-                                 if x[1] == self.roi_start)
-                seq_end = next(x for x in read.get_aligned_pairs()
-                               if x[1] == self.roi_end)
+                seq_start = next(
+                    x for x in read.get_aligned_pairs() if x[1] == self.roi_start
+                )
+                seq_end = next(
+                    x for x in read.get_aligned_pairs() if x[1] == self.roi_end
+                )
                 if seq_start[0] and seq_end[0]:  # If anchored
-                    seq_segment = read.query_sequence[seq_start[0]:seq_end[0]]
-                    first_base_pos = seq_start[0]+self.anchor_length
+                    seq_segment = read.query_sequence[seq_start[0] : seq_end[0]]
+                    first_base_pos = seq_start[0] + self.anchor_length
                     first_base_qual = read.query_qualities[first_base_pos]
                     # Extract poly sequence (excluding anchor bases)
                     # Assuming no indel in anchor sequence
-                    regex = r'.{' + re.escape(str(self.anchor_length)) + \
-                        r'}(.+).{' + re.escape(str(self.anchor_length)) + r'}'
+                    regex = (
+                        r".{"
+                        + re.escape(str(self.anchor_length))
+                        + r"}(.+).{"
+                        + re.escape(str(self.anchor_length))
+                        + r"}"
+                    )
                     seq_match = re.match(regex, seq_segment)
                     if seq_match:
                         # Partition poly by first base allele
@@ -143,13 +174,16 @@ class PolyEdge():
                 "first_base": allele,
                 "read_count": len(counts[allele]),
                 "mean_quality": int(statistics.mean(quals[allele])),
-                "read_fraction": round(len(counts[allele])/total_count, 2),
+                "read_fraction": round(len(counts[allele]) / total_count, 2),
                 "mean_polylen": round(statistics.mean(counts[allele]), 2),
-                "stdev_polylen": round(statistics.stdev(counts[allele]),
-                                       2) if len(counts[allele]) > 1 else 0,
+                "stdev_polylen": round(statistics.stdev(counts[allele]), 2)
+                if len(counts[allele]) > 1
+                else 0,
                 "mode_polylen": statistics.mode(counts[allele]),
-                "poly_purity": round(sum(purity[allele])/(sum(counts[allele])-len(counts[allele]))),
-                }
+                "poly_purity": round(
+                    sum(purity[allele]) / (sum(counts[allele]) - len(counts[allele]))
+                ),
+            }
             allele_list.append(data)
         return allele_list
 
@@ -159,12 +193,14 @@ class PolyEdge():
 
             :return roi_reads (obj):    Object containing reads
         """
-        reader = pysam.Samfile(self.bamfile, 'rb')  # Open BAM file
+        reader = pysam.Samfile(self.bamfile, "rb")  # Open BAM file
         try:
             roi_reads = reader.fetch(str(self.chrom), *self.poly)
         except ValueError as exception:
-            print(f"Using CHROM {str(self.chrchrom)} raised an exception ({exception}). "
-                  f"Trying: CHROM '{self.chrchrom}'")
+            print(
+                f"Using CHROM {str(self.chrchrom)} raised an exception ({exception}). "
+                f"Trying: CHROM '{self.chrchrom}'"
+            )
             roi_reads = reader.fetch(self.chrchrom, *self.poly)
         return roi_reads
 
@@ -175,24 +211,24 @@ class PolyEdge():
             :param allele_list (list):  List of dictionaries, one per allele,
                                         containing calculated metrics
         """
-        with open(self.csv_path, 'wt', encoding='utf-8') as file:
-            writer = csv.writer(file, delimiter=',')
+        with open(self.csv_path, "wt", encoding="utf-8") as file:
+            writer = csv.writer(file, delimiter=",")
             writer.writerow(["Created by", f"{config.APP_NAME}"])
             writer.writerow(["Version", git_tag()])
             writer.writerow(["Date", self.timestamp])
             writer.writerow(["Sample", self.sample_name])
             writer.writerow([])
-            writer.writerow([config.PARAMETERS_STR])
-            writer.writerow([config.BAM_PARAM, self.bamfile_prefix])
-            writer.writerow([config.BAI_PARAM, self.baifile_prefix])
-            writer.writerow([config.GENE_PARAM, self.gene])
-            writer.writerow([config.CHROM_PARAM, self.chrom])
-            writer.writerow([config.POLY_S_PARAM, self.poly[0]])
-            writer.writerow([config.POLY_E_PARAM, self.poly[1]])
-            writer.writerow([config.ANCHOR_LEN_PARAM, self.anchor_length])
+            writer.writerow([config.PARAMS_STR])
+            writer.writerow([config.PARAMS["bam"], self.bamfile_prefix])
+            writer.writerow([config.PARAMS["bai"], self.baifile_prefix])
+            writer.writerow([config.PARAMS["gene"], self.gene])
+            writer.writerow([config.PARAMS["chrom"], self.chrom])
+            writer.writerow([config.PARAMS["poly_start"], self.poly[0]])
+            writer.writerow([config.PARAMS["poly_end"], self.poly[1]])
+            writer.writerow([config.PARAMS["anchor_length"], self.anchor_length])
             writer.writerow([])
             writer.writerow(config.TABLE_HEADERS)
-            
+
             for row in allele_list:
                 writer.writerow(row.values())
         file.close()
@@ -207,41 +243,55 @@ class PolyEdge():
             :return table_html (str):   String containing the table html
         """
         # Generate the table body, with a row per allele
-        table_body = ""
         for allele_dict in allele_list:
             if allele_dict["read_count"] >= config.THRESHOLDS["read_count"]:
-                read_count = config.CELL_PASS.format(allele_dict["read_count"])
+                read_count = config.HTML_TBL_CELL_PASS.format(allele_dict["read_count"])
             else:
-                read_count = config.CELL_FAIL.format(allele_dict["read_count"])
+                read_count = config.HTML_TBL_CELL_FAIL.format(allele_dict["read_count"])
 
             if allele_dict["mean_quality"] >= config.THRESHOLDS["mean_quality"]:
-                mean_quality = config.CELL_PASS.format(allele_dict["mean_quality"])
+                mean_quality = config.HTML_TBL_CELL_PASS.format(
+                    allele_dict["mean_quality"]
+                )
             else:
-                mean_quality = config.CELL_FAIL.format(allele_dict["mean_quality"])
+                mean_quality = config.HTML_TBL_CELL_FAIL.format(
+                    allele_dict["mean_quality"]
+                )
 
             if allele_dict["read_fraction"] >= config.THRESHOLDS["read_fraction"]:
-                read_fraction = config.CELL_PASS.format(allele_dict["read_fraction"])
+                read_fraction = config.HTML_TBL_CELL_PASS.format(
+                    allele_dict["read_fraction"]
+                )
             else:
-                read_fraction = config.CELL_FAIL.format(allele_dict["read_fraction"])
+                read_fraction = config.HTML_TBL_CELL_FAIL.format(
+                    allele_dict["read_fraction"]
+                )
 
             if allele_dict["poly_purity"] >= config.THRESHOLDS["poly_purity"]:
-                poly_purity = config.CELL_PASS.format(allele_dict["poly_purity"])
+                poly_purity = config.HTML_TBL_CELL_PASS.format(
+                    allele_dict["poly_purity"]
+                )
             else:
-                poly_purity = config.CELL_FAIL.format(allele_dict["poly_purity"])
+                poly_purity = config.HTML_TBL_CELL_FAIL.format(
+                    allele_dict["poly_purity"]
+                )
 
-            table_body += config.HTML_ROW.format(config.CELL.format(allele_dict['gene']),
-                                                 config.CELL.format(allele_dict['chrom']),
-                                                 config.CELL.format(allele_dict['pos']),
-                                                 config.CELL.format(allele_dict['first_base']),
-                                                 read_count, mean_quality, read_fraction,
-                                                 config.CELL.format(allele_dict['mean_polylen']),
-                                                 config.CELL.format(allele_dict['stdev_polylen']),
-                                                 config.CELL.format(allele_dict['mode_polylen']),
-                                                 poly_purity)
-        cell_string = ""
-        for string in config.TABLE_HEADERS:  # Generate the table headers
-            cell_string += f"<th>{string}</th>"
-        table_header = f"<tr>{cell_string}</tr>"
+            table_body = config.HTML_TBL_ROW.format(
+                config.HTML_TBL_CELL.format(allele_dict["gene"]),
+                config.HTML_TBL_CELL.format(allele_dict["chrom"]),
+                config.HTML_TBL_CELL.format(allele_dict["pos"]),
+                config.HTML_TBL_CELL.format(allele_dict["first_base"]),
+                read_count,
+                mean_quality,
+                read_fraction,
+                config.HTML_TBL_CELL.format(allele_dict["mean_polylen"]),
+                config.HTML_TBL_CELL.format(allele_dict["stdev_polylen"]),
+                config.HTML_TBL_CELL.format(allele_dict["mode_polylen"]),
+                poly_purity,
+            )
+        table_header = config.HTML_TBL_HEADER.format(
+            *config.TABLE_HEADERS
+        )  # Generate table headers
         table_html = f"{table_header}{table_body}"
 
         return table_html
@@ -253,26 +303,23 @@ class PolyEdge():
 
             :param table_html (str): String containing the table html
         """
-        template = jinja2.Environment(loader=jinja2.FileSystemLoader(config.TEMPLATE_DIR),
-                                      autoescape=True).get_template('template_report.html')
+        template = jinja2.Environment(
+            loader=jinja2.FileSystemLoader(config.TEMPLATE_DIR), autoescape=True
+        ).get_template("template_report.html")
 
-        footer_html = config.LIST.format(config.BAM_PARAM, self.bamfile_prefix, config.BAI_PARAM,
-                                         self.baifile_prefix, config.GENE_PARAM, self.gene,
-                                         config.CHROM_PARAM, self.chrom, config.POLY_S_PARAM,
-                                         self.poly[0], config.POLY_E_PARAM, self.poly[1],
-                                         config.ANCHOR_LEN_PARAM, self.anchor_length)
-
-        place_holder_values = {"timestamp": self.timestamp,
-                               "app_version": git_tag(),
-                               "gene": self.gene,
-                               "sample_name": self.sample_name,
-                               "table": table_html,
-                               "logo": config.LOGOPATH,
-                               "parameters_str": config.PARAMETERS_STR,
-                               "footer_html": footer_html}
+        html_placeholders = {
+            "timestamp": self.timestamp,
+            "app_version": git_tag(),
+            "gene": self.gene,
+            "sample_name": self.sample_name,
+            "table": table_html,
+            "logo": config.LOGOPATH,
+            "parameters_str": config.PARAMS_STR,
+            "footer_html": self.footer_html,
+        } | config.INTERP_THRESHS
 
         with open(self.html_path, "w", encoding="utf-8") as html_file:
-            html_file.write(template.render(place_holder_values))
+            html_file.write(template.render(html_placeholders))
         html_file.close()
 
     def create_pdffile(self):
@@ -280,11 +327,15 @@ class PolyEdge():
         Write metrics to pdf, specifying pdfkit options to turn off standard out and to allow
         pdfkit access to logo image
         """
-        pdfkit.from_file(self.html_path, self.pdf_path, options={
-                                                            'enable-local-file-access': None,
-                                                            "quiet": '',
-                                                            'encoding': "UTF-8"
-                                                            })
+        pdfkit.from_file(
+            self.html_path,
+            self.pdf_path,
+            options={
+                "enable-local-file-access": None,
+                "quiet": "",
+                "encoding": "UTF-8",
+            },
+        )
 
 
 def arg_parse():
@@ -294,23 +345,59 @@ def arg_parse():
 
         :return (Namespace object): parsed command line attributes
     """
-    parser = argparse.ArgumentParser(description='Determine whether a known variant is present at '
-                                                 'the base preceding a poly stretch in a BAM file')
-    parser.add_argument('-A', config.ANCHOR_LEN_PARAM, type=int,  nargs='?', default=2, const=2,
-                        help='Length of anchor sequence', required=False)  # Optional argument
-    requirednamed = parser.add_argument_group('Required named arguments')
-    requirednamed.add_argument('-B', config.BAM_PARAM, type=validate_path,
-                               help='Bam file to analyse', required=True)
-    requirednamed.add_argument('-I', config.BAI_PARAM, type=validate_path,
-                               help='Bam index file', required=True)
-    requirednamed.add_argument('-G', config.GENE_PARAM, type=str,
-                               help='Gene of interest', required=True)
-    requirednamed.add_argument('-S', config.POLY_S_PARAM, type=int,
-                               help='Start position of poly stretch', required=True)
-    requirednamed.add_argument('-E', config.POLY_E_PARAM, type=int,
-                               help='End position of poly stretch', required=True)
-    requirednamed.add_argument('-C', config.CHROM_PARAM, type=int,
-                               help="Chromosome of interest", required=True)
+    parser = argparse.ArgumentParser(
+        description="Determine whether a known variant is present at "
+        "the base preceding a poly stretch in a BAM file"
+    )
+    parser.add_argument(
+        "-A",
+        config.PARAMS["anchor_length"],
+        type=int,
+        nargs="?",
+        default=2,
+        const=2,
+        help="Length of anchor sequence",
+        required=False,
+    )  # Optional arg
+    requirednamed = parser.add_argument_group("Required named arguments")
+    requirednamed.add_argument(
+        "-B",
+        config.PARAMS["bam"],
+        type=validate_path,
+        help="Bam file to analyse",
+        required=True,
+    )
+    requirednamed.add_argument(
+        "-I",
+        config.PARAMS["bai"],
+        type=validate_path,
+        help="Bam index file",
+        required=True,
+    )
+    requirednamed.add_argument(
+        "-G", config.PARAMS["gene"], type=str, help="Gene of interest", required=True
+    )
+    requirednamed.add_argument(
+        "-S",
+        config.PARAMS["poly_start"],
+        type=int,
+        help="Start position of poly stretch",
+        required=True,
+    )
+    requirednamed.add_argument(
+        "-E",
+        config.PARAMS["poly_end"],
+        type=int,
+        help="End position of poly stretch",
+        required=True,
+    )
+    requirednamed.add_argument(
+        "-C",
+        config.PARAMS["chrom"],
+        type=int,
+        help="Chromosome of interest",
+        required=True,
+    )
     return vars(parser.parse_args())
 
 
@@ -329,7 +416,7 @@ def validate_path(path):
 def git_tag():
     """Obtain git tag from current commit
 
-        :return stdout (str):  String containing stdout, with newline characters removed
+    :return stdout (str):  String containing stdout, with newline characters removed
     """
     filepath = os.path.dirname(os.path.realpath(__file__))
     cmd = f"git -C {filepath} describe --tags"
@@ -342,13 +429,12 @@ def git_tag():
 
 
 if __name__ == "__main__":
-
     args = arg_parse()
-    bamfile = args['bam']
-    bam_index = args['bai']
-    gene = args['gene']
-    chrom = args['chrom']
-    poly = (args['poly_start'], args['poly_end'])
-    anchor_length = args['anchor_length']
+    bamfile = args["bam"]
+    bam_index = args["bai"]
+    gene = args["gene"]
+    chrom = args["chrom"]
+    poly = (args["poly_start"], args["poly_end"])
+    anchor_length = args["anchor_length"]
     polyedge = PolyEdge(bamfile, bam_index, gene, chrom, poly, anchor_length)
     polyedge.generate_output()
