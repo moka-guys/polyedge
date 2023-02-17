@@ -2,15 +2,26 @@
 """
 import os
 
-# General settings
+
+# General settings --------------------------------------------------------------------------------
+
 APP_NAME = "moka-guys/polyedge"
 TITLE = "POLYEDGE REPORT"
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))  # Project root
 TEMPLATE_DIR = os.path.join(ROOT_DIR, "templates")
 LOGOPATH = os.path.join(ROOT_DIR, "images/synnovis_logo.txt")
 
+PARAMS = {
+    "bam": "--bam",
+    "bai": "--bai",
+    "gene": "--gene",
+    "chrom": "--chrom",
+    "poly_start": "--poly_start",
+    "poly_end": "--poly_end",
+    "anchor_length": "--anchor_length",
+}
 
-GENERAL_HEADERS = ["Gene", "Chromosome", "Position"]
+PARAMS_STR = "The app was run with the following parameters:"
 
 TABLE_HEADERS = [
     "First base of poly repeat allele",
@@ -23,7 +34,13 @@ TABLE_HEADERS = [
     "Average purity of polyN repeat",
 ]
 
-# HTML/PDF-specific settings
+# CSV-specific settings ---------------------------------------------------------------------------
+
+GENERAL_HEADERS = ["Gene", "Chromosome", "Position"]  # These are only used in CSV file construction
+
+
+# HTML/PDF-specific settings ----------------------------------------------------------------------
+
 HTML_TEMPLATE = os.path.join(TEMPLATE_DIR, "template_report.html")
 HTML_TBL_HEADER = (
     "<tr><th>{}</th><th>{}</th><th>{}</th><th>{}</th>"
@@ -54,16 +71,4 @@ INTERP_THRESHS = {
     "mean_bq_thresh": "Mean BQ >= 20",
     "fraction_reads_thresh": "Het if both fractions of reads >=0.2",
     "polyn_pur_thresh": "Purity of polyN should be >=0.95 (max 5% variation within polyN repeat)",
-}
-
-PARAMS_STR = "The app was run with the following parameters:"
-
-PARAMS = {
-    "bam": "--bam",
-    "bai": "--bai",
-    "gene": "--gene",
-    "chrom": "--chrom",
-    "poly_start": "--poly_start",
-    "poly_end": "--poly_end",
-    "anchor_length": "--anchor_length",
 }
