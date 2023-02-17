@@ -1,6 +1,6 @@
 # PolyEdge
 
-Finds variants at the edge of a poly that is varying length.
+Finds variants at the 5' end of a poly stretch of varying length in a BAM file
 
 This provides a solution to the alignment issues caused by poly repeat stretches, whereby the aligner spreads the variant across adjacent bases and dilutes it to a point where the standard variant caller cannot detect it.
 
