@@ -29,17 +29,25 @@ class PolyEdge:
 
         calculate_metrics()
             Calculate metrics per allele.
-            :return allele_list (list): List of dictionaries, one per allele,
-                                        containing calculated metrics
+            :return allele_list (list):         List of dictionaries, one per allele,
+                                                containing calculated metrics
+            :return total_read_count (int):     Total read count across all alleles
+
         create_csvfile()
             Write metrics to csv. Copy template csv to output dest, write data to end of file
             :param allele_list (list):  List of dictionaries, one per allele,
                                         containing calculated metrics
         construct_table_html()
             Construct html with formatting dependent on whether metrics meet defined thresholds
-            :param allele_list (list):  List of dictionaries, one per allele,
-                                        containing calculated metrics
-            :return table_html (str):   String containing the table html
+            :return total_read_count (int):     Total read count across all alleles
+            :return table_html (str):           String containing the table html
+
+        construct_readcount_html(self, allele_list)
+            Construct html for total read count header with colour dependent upon whether it passes
+            the config defined threshold
+            :param allele_list (list):      List of dictionaries, one per allele,
+                                            containing calculated metrics
+            :return total_rc_html (str):    String containing the total read count html
 
         create_htmlfile()
             Write metrics to html
@@ -101,10 +109,11 @@ class PolyEdge:
         """
         Call methods required to generate all output files for the sample provided
         """
-        allele_list = self.calculate_metrics()
-        self.create_csvfile(allele_list)
+        allele_list, total_read_count = self.calculate_metrics()
+        self.create_csvfile(allele_list, total_read_count)
         table_html = self.construct_table_html(allele_list)
-        self.create_htmlfile(table_html)
+        total_rc_html = self.construct_readcount_html(total_read_count)
+        self.create_htmlfile(table_html, total_rc_html)
         self.create_pdffile()
 
     def calculate_metrics(self):
@@ -113,8 +122,9 @@ class PolyEdge:
         of first base, fraction of reads, mean poly length, standard deviation of poly length,
         mode of poly length, average purity of polyN repeat
 
-            :return allele_list (list): List of dictionaries, one per allele,
-                                        containing calculated metrics
+            :return allele_list (list):         List of dictionaries, one per allele,
+                                                containing calculated metrics
+            :return total_read_count (int):     Total read count across all alleles
         """
         # Poly length counts by first base allele
         counts = defaultdict(
@@ -140,7 +150,7 @@ class PolyEdge:
                     x for x in read.get_aligned_pairs() if x[1] == self.roi_end
                 )
                 if seq_start[0] and seq_end[0]:  # If anchored
-                    seq_segment = read.query_sequence[seq_start[0] : seq_end[0]]
+                    seq_segment = read.query_sequence[seq_start[0]: seq_end[0]]
                     first_base_pos = seq_start[0] + self.anchor_length
                     first_base_qual = read.query_qualities[first_base_pos]
                     # Extract poly sequence (excluding anchor bases)
@@ -181,11 +191,15 @@ class PolyEdge:
                 else 0,
                 "mode_polylen": statistics.mode(counts[allele]),
                 "poly_purity": round(
-                    sum(purity[allele]) / (sum(counts[allele]) - len(counts[allele]))
-                ),
+                    sum(purity[allele]) / (sum(counts[allele]) - len(counts[allele])), 2),
             }
             allele_list.append(data)
-        return allele_list
+
+        total_read_count = int()
+        for allele in allele_list:
+            total_read_count += allele["read_count"]
+
+        return allele_list, total_read_count
 
     def roi_reads(self):
         """
@@ -204,12 +218,13 @@ class PolyEdge:
             roi_reads = reader.fetch(self.chrchrom, *self.poly)
         return roi_reads
 
-    def create_csvfile(self, allele_list):
+    def create_csvfile(self, allele_list, total_read_count):
         """
         Write metrics to csv file
 
             :param allele_list (list):  List of dictionaries, one per allele,
                                         containing calculated metrics
+            :param total_read_count (int):     Total read count across all alleles
         """
         with open(self.csv_path, "wt", encoding="utf-8") as file:
             writer = csv.writer(file, delimiter=",")
@@ -217,6 +232,7 @@ class PolyEdge:
             writer.writerow(["Version", git_tag()])
             writer.writerow(["Date", self.timestamp])
             writer.writerow(["Sample", self.sample_name])
+            writer.writerow(["Total read count", total_read_count])
             writer.writerow([])
             writer.writerow([config.PARAMS_STR])
             writer.writerow([config.PARAMS["bam"], self.bamfile_prefix])
@@ -227,7 +243,7 @@ class PolyEdge:
             writer.writerow([config.PARAMS["poly_end"], self.poly[1]])
             writer.writerow([config.PARAMS["anchor_length"], self.anchor_length])
             writer.writerow([])
-            writer.writerow(config.TABLE_HEADERS)
+            writer.writerow(config.GENERAL_HEADERS + config.TABLE_HEADERS)
 
             for row in allele_list:
                 writer.writerow(row.values())
@@ -242,13 +258,9 @@ class PolyEdge:
                                         containing calculated metrics
             :return table_html (str):   String containing the table html
         """
+        table_body = str()
         # Generate the table body, with a row per allele
         for allele_dict in allele_list:
-            if allele_dict["read_count"] >= config.THRESHOLDS["read_count"]:
-                read_count = config.HTML_TBL_CELL_PASS.format(allele_dict["read_count"])
-            else:
-                read_count = config.HTML_TBL_CELL_FAIL.format(allele_dict["read_count"])
-
             if allele_dict["mean_quality"] >= config.THRESHOLDS["mean_quality"]:
                 mean_quality = config.HTML_TBL_CELL_PASS.format(
                     allele_dict["mean_quality"]
@@ -276,12 +288,9 @@ class PolyEdge:
                     allele_dict["poly_purity"]
                 )
 
-            table_body = config.HTML_TBL_ROW.format(
-                config.HTML_TBL_CELL.format(allele_dict["gene"]),
-                config.HTML_TBL_CELL.format(allele_dict["chrom"]),
-                config.HTML_TBL_CELL.format(allele_dict["pos"]),
+            table_body += config.HTML_TBL_ROW.format(
                 config.HTML_TBL_CELL.format(allele_dict["first_base"]),
-                read_count,
+                config.HTML_TBL_CELL.format(allele_dict["read_count"]),
                 mean_quality,
                 read_fraction,
                 config.HTML_TBL_CELL.format(allele_dict["mean_polylen"]),
@@ -293,27 +302,47 @@ class PolyEdge:
             *config.TABLE_HEADERS
         )  # Generate table headers
         table_html = f"{table_header}{table_body}"
-
         return table_html
 
-    def create_htmlfile(self, table_html):
+    def construct_readcount_html(self, total_read_count):
+        """
+        Construct html for total read count header with colour dependent upon whether it passes
+        the config defined threshold
+
+            :return total_read_count (int):     Total read count across all alleles
+            :return total_rc_html (str):        String containing the total read count html
+        """
+        if total_read_count >= config.THRESHOLDS["read_count"]:
+            total_rc_html = config.HTML_TBL_CELL_PASS.format(total_read_count)
+        else:
+            total_rc_html = config.HTML_TBL_CELL_PASS.format(total_read_count)
+
+        return total_rc_html
+
+    def create_htmlfile(self, table_html, total_rc_html):
         """
         Write metrics to html. Load template using jinja2, then write to new file, filling the
         place holders in the template with the specified placeholder values
 
             :param table_html (str): String containing the table html
+            :return total_rc_html (str):    String containing the total read count html
         """
         template = jinja2.Environment(
             loader=jinja2.FileSystemLoader(config.TEMPLATE_DIR), autoescape=True
         ).get_template("template_report.html")
 
+        logo_string = open(config.LOGOPATH, 'r', encoding="utf-8").read()
+
         html_placeholders = {
             "timestamp": self.timestamp,
             "app_version": git_tag(),
-            "gene": self.gene,
             "sample_name": self.sample_name,
-            "table": table_html,
-            "logo": config.LOGOPATH,
+            "total_read_count_html": total_rc_html,
+            "gene": self.gene,
+            "chromosome": self.chrom,
+            "position": self.variant_pos,
+            "results_table_html": table_html,
+            "logo_string": logo_string,
             "parameters_str": config.PARAMS_STR,
             "footer_html": self.footer_html,
         } | config.INTERP_THRESHS

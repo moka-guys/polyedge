@@ -38,19 +38,23 @@
 		}
 
 		h1 {
-			font-size: 9px
+			font-size: 9px;
 		}
 
 		h2 {
-			font-size: 20px
+			font-size: 20px;
 		}
 
 		h3 {
-			font-size: 15px
+			font-size: 15px;
 		}
 
 		h4 {
-			font-size: 10px
+			font-size: 13px;
+		}
+
+		h5 {
+			font-size: 10px;
 		}
 
 		body {
@@ -67,32 +71,44 @@
 			position: relative;
 			background: #ededed;
 			padding: 5px;
-			padding-left: 15px
+			padding-left: 15px;
 		}
 
-		div.results {
-			font-family: Arial, Helvetica, sans-serif;
-			position: relative
+		table.results {
+			border: 1px solid black;
+			padding: 3px;
+			page-break-inside: avoid;
+			font-size: 11px;
 		}
 
-		table,
-		td,
-		tr,
-		th {
+		.general table,
+		.general tr,
+		.general td,
+		.general th {
+			text-align: left;
+			border: none;
+			page-break-inside: avoid;
+			font-size: 11px;
+		}
+
+		.results table,
+		.results th,
+		.results tr,
+		.results td {
 			text-align: left;
 			border: 1px solid black;
 			padding: 3px;
 			page-break-inside: avoid;
-			font-size: 11px
+			font-size: 11px;
 		}
 
-		th {
-			background-color: #96D4D4
+		.results th {
+			background-color: #96D4D4;
 		}
 
 		img {
 			width: 200px;
-			height: auto
+			height: auto;
 		}
 
 		footer {
@@ -105,43 +121,59 @@
 			height: 140px;
 			color: #5A5A5A;
 		}
-	</style>
 
+	</style>
 	<head>
 		<div class="header">
 			<div class="col1"><b>moka-guys/polyedge {{ app_version }}</b></div>
-			<div class="col2"><img src="{{ logo }}"></div>
+			<div class="col2"><img src="data:image/png;base64,{{ logo_string }}"></div>
 		</div>
 	</head>
 
 	<body>
 		<hr width="100%" size="2" color="black">
 		<div class="title">
-			<h2 align="center"> {{ gene }} POLYEDGE REPORT</h2>
-			<h4 align="center"> Created {{ timestamp }}
+			<h2 align="center">{{ gene }} POLYEDGE REPORT</h2>
+			<h5 align="center">Created {{ timestamp }}</h5>
 		</div>
 		</div>
 		<hr width="100%" size="2" color="black">
 		</hr>
 		<div class="clear">&nbsp;</div>
-		<h3 align="left"> {{ sample_name }}</h3>
-		<hr width="100%" size="0" color="white">
-		</hr>
-		<div class="results" align="left">
-			<table>
-				{{ table | safe }}
-			</table>
+		<h3 align="left">{{ sample_name }}</h3>
+		<table class="general">
+			<tr>
+				<th>Gene</th>
+				<td>{{ gene }}</td>
+			</tr>
+			<tr>
+				<th>Chromosome</th>
+				<td>{{ chromosome }}</td>
+			</tr>
+			<tr>
+				<th>Position</th>
+				<td>{{ position }}</td>
+			</tr>
+			<tr>
+				<th>Total read count</th>
+				{{ total_read_count_html | safe }}
+			</tr>
+		</table>
+		<div class="clear">&nbsp;</div>
+		<table class="results">
+			{{ results_table_html | safe }}
+		</table>
 		</div>
 		<div class="clear">&nbsp;</div>
 		<div class="clear">&nbsp;</div>
 		<div class="interpretation_thresholds">
-			<h3 align="left"> {{ thresh_title }} </h3>
+			<h3 align="left">{{ thresh_title }}</h3>
 			{{ thresh_str }}
 			<ul>
 				<li>{{ read_count_thresh }}​</li>
-				<li> {{ mean_bq_thresh }} </li>
-				<li> {{ fraction_reads_thresh }} ​</li>
-				<li> {{ polyn_pur_thresh }} </li>
+				<li>{{ mean_bq_thresh }}</li>
+				<li>{{ fraction_reads_thresh }} ​</li>
+				<li>{{ polyn_pur_thresh }}</li>
 			</ul>
 		</div>
 	</body>

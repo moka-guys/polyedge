@@ -43,7 +43,7 @@ The script outputs several files which describe the alleles seen at the position
 
 The HTML and PDF reports are identical.
 
-The outputs contain tables with the calculated metrics required to interpret the variant. The HTML and PDF reports contain a list of interpretation thresholds.
+The outputs contain tables with the calculated metrics required to interpret the variant. The HTML and PDF reports contain a list of interpretation thresholds. These thresholds are conservative and therefore can be applied to any case.
 
 Columns containing metrics that have specified interpretation thresholds (Read count, mean quality of first base, fraction of reads, average purity of polyN repeat) are highlighted in green or red dependent upon whether they meet or fail to meet the specified threshold.
 
