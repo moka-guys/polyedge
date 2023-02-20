@@ -67,8 +67,8 @@ INTERP_THRESHS = {
     "thresh_title": "Interpretation Thresholds",
     "thresh_str": "The above metrics are highlighted in green if they meet the below "
     "thresholds and in red if they do not.",
-    "read_count_thresh": "Total read count >= 100X",
-    "mean_bq_thresh": "Mean BQ >= 20",
-    "fraction_reads_thresh": "Het if both fractions of reads >=0.2",
-    "polyn_pur_thresh": "Purity of polyN should be >=0.95 (max 5% variation within polyN repeat)",
+    "read_count_thresh": "Total read count ≥100X",
+    "mean_bq_thresh": "Mean BQ ≥20",
+    "fraction_reads_thresh": "Het if both fractions of reads ≥0.2",
+    "polyn_pur_thresh": "Purity of polyN should be ≥0.95 (max 5% variation within polyN repeat)",
 }
