@@ -29,7 +29,7 @@ NB: Anchor_length (number of aligned bases required on either side of the repeat
 
 The script can be run as follows:
 
-```python
+```bash
 python polyedge.py -B your_bam_file.bam -I your_bam_file_index.bai -G MSH2 -S 47641559 -E 47641586 -C 2
 ```
 
@@ -49,7 +49,7 @@ Columns containing metrics that have specified interpretation thresholds (Read c
 
 ## Docker image
 
-The docker image can be can be built, tagged and saved as a .tar.gz file using the Makefile:
+The docker image is built, tagged and saved as a .tar.gz file using the Makefile as follows:
 
 ```bash
 sudo make build
@@ -58,11 +58,12 @@ sudo make build
 The docker image can be run as follows:
 
 ```bash
-sudo docker run -v $PATH_TO_INPUTS:$PATH_TO_INPUTS -v $PATH_TO_OUTPUTS:/outputs seglh/polyedge:v1.1.0 -B $PATH_TO_INPUTS/NGS506B_96_286171_DH_M_VCP2R211Via_Pan4130_S68_R1_001.refined.bam -I $PATH_TO_INPUTS/NGS506B_96_286171_DH_M_VCP2R211Via_Pan4130_S68_R1_001.refined.bam.bai -G MSH2 -S 47641559 -E 47641586 -C 2
+sudo docker run -v $PATH_TO_INPUTS:$PATH_TO_INPUTS -v $PATH_TO_OUTPUTS:/outputs seglh-polyedge:$TAG -B $PATH_TO_INPUTS/NGS506B_96_286171_DH_M_VCP2R211Via_Pan4130_S68_R1_001.refined.bam -I $PATH_TO_INPUTS/NGS506B_96_286171_DH_M_VCP2R211Via_Pan4130_S68_R1_001.refined.bam.bai -G MSH2 -S 47641559 -E 47641586 -C 2
 ```
 
-N.B. $PATH_TO_INPUTS must be the same inside and outside the docker image
-$PATH_TO_OUTPUTS should be wherever you want the outputs stored on your local system
+* $PATH_TO_INPUTS must be the same inside and outside the docker image
+* $PATH_TO_OUTPUTS should be wherever you want the outputs stored on your local system
+* $TAG should be whichever image version you wish to run (can be determined through `sudo docker images`)
 
 
 The current and all previous verisons of the tool are stored as dockerised versions in 001_ToolsReferenceData project as .tar.gz files.
