@@ -459,11 +459,6 @@ def git_tag():
 
 if __name__ == "__main__":
     args = arg_parse()
-    bamfile = args["bam"]
-    bam_index = args["bai"]
-    gene = args["gene"]
-    chrom = args["chrom"]
-    poly = (args["poly_start"], args["poly_end"])
-    anchor_length = args["anchor_length"]
-    polyedge = PolyEdge(bamfile, bam_index, gene, chrom, poly, anchor_length)
+    polyedge = PolyEdge(args["bam"], args["bai"], args["gene"], args["chrom"],
+                        (args["poly_start"], args["poly_end"]), args["anchor_length"])
     polyedge.generate_output()
