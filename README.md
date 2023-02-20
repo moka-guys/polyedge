@@ -57,8 +57,7 @@ sudo make build
 
 The docker image can be run as follows:
 
-```python
-
+```bash
 sudo docker run -v $PATH_TO_INPUTS:$PATH_TO_INPUTS -v $PATH_TO_OUTPUTS:/outputs seglh-polyedge:v1.1.0 -B $PATH_TO_INPUTS/NGS506B_96_286171_DH_M_VCP2R211Via_Pan4130_S68_R1_001.refined.bam -I $PATH_TO_INPUTS/NGS506B_96_286171_DH_M_VCP2R211Via_Pan4130_S68_R1_001.refined.bam.bai -G MSH2 -S 47641559 -E 47641586 -C 2
 ```
 
