@@ -1,4 +1,4 @@
-BUILD := $(shell git log -1 --pretty=%h)
+BUILD := $(shell git describe --tags)
 DIR := $(shell pwd)
 
 # define image names

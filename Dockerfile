@@ -1,7 +1,6 @@
 FROM python:3.10
 
 LABEL author="Rachel Duffin" \
-      description="seglh-polyedge:v1.1.0" \
       maintainer="rachel.duffin2@nhs.net"
 
 RUN mkdir -p /polyedge /data /outputs
