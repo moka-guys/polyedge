@@ -315,7 +315,7 @@ class PolyEdge:
         if total_read_count >= config.THRESHOLDS["read_count"]:
             total_rc_html = config.HTML_TBL_CELL_PASS.format(total_read_count)
         else:
-            total_rc_html = config.HTML_TBL_CELL_PASS.format(total_read_count)
+            total_rc_html = config.HTML_TBL_CELL_FAIL.format(total_read_count)
 
         return total_rc_html
 
