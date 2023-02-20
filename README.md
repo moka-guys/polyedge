@@ -49,12 +49,10 @@ Columns containing metrics that have specified interpretation thresholds (Read c
 
 ## Docker image
 
-A docker image can be built, tagged and saved as a .tar.gz file using the following commands:
+The docker image can be can be built, tagged and saved as a .tar.gz file using the Makefile:
 
 ```bash
-sudo docker build -f Dockerfile .
-sudo docker tag $IMAGE_ID seglh-polyedge:$VERSION
-sudo docker save seglh-polyedge:$VERSION | gzip > seglh-polyedge:$VERSION.tar.gz
+sudo make build
 ```
 
 The docker image can be run as follows:
